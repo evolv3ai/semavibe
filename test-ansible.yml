@@ -1,0 +1,25 @@
+---
+- name: Test Ansible is working
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  
+  tasks:
+    - name: Print a test message
+      debug:
+        msg: "Ansible is working correctly!"
+        
+    - name: Check if terraform is available
+      command: which terraform
+      register: terraform_check
+      failed_when: false
+      
+    - name: Show terraform location
+      debug:
+        msg: "Terraform found at: {{ terraform_check.stdout }}"
+      when: terraform_check.rc == 0
+      
+    - name: Show terraform not found
+      debug:
+        msg: "Terraform is not installed"
+      when: terraform_check.rc != 0
