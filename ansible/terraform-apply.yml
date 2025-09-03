@@ -1,0 +1,46 @@
+---
+- name: Provision OCI Infrastructure with Terraform
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  
+  tasks:
+    - name: Change to terraform directory
+      ansible.builtin.shell: pwd
+      args:
+        chdir: "{{ playbook_dir }}/../infra/terraform"
+      register: pwd_result
+      
+    - name: Show working directory
+      debug:
+        msg: "Working in: {{ pwd_result.stdout }}"
+    
+    - name: Initialize Terraform
+      ansible.builtin.shell: terraform init -input=false
+      args:
+        chdir: "{{ playbook_dir }}/../infra/terraform"
+      register: init_result
+      
+    - name: Show Terraform init output
+      debug:
+        var: init_result.stdout_lines
+        
+    - name: Apply Terraform configuration
+      ansible.builtin.shell: terraform apply -auto-approve
+      args:
+        chdir: "{{ playbook_dir }}/../infra/terraform"
+      register: apply_result
+      
+    - name: Show Terraform apply output
+      debug:
+        var: apply_result.stdout_lines
+        
+    - name: Get instance IPs
+      ansible.builtin.shell: terraform output -json instance_public_ips
+      args:
+        chdir: "{{ playbook_dir }}/../infra/terraform"
+      register: ips_output
+      
+    - name: Display provisioned instance IPs
+      debug:
+        msg: "Instance IPs: {{ ips_output.stdout }}"

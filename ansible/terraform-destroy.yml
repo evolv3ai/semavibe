@@ -1,0 +1,26 @@
+---
+- name: Destroy OCI Infrastructure with Terraform
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  
+  tasks:
+    - name: Confirm destruction
+      debug:
+        msg: "About to destroy all OCI infrastructure..."
+        
+    - name: Destroy Terraform resources
+      ansible.builtin.shell: terraform destroy -auto-approve
+      args:
+        chdir: "{{ playbook_dir }}/../infra/terraform"
+      register: destroy_result
+      
+    - name: Show destruction output
+      debug:
+        var: destroy_result.stdout_lines
+        
+    - name: Cleanup temporary files
+      ansible.builtin.file:
+        path: "/tmp/inventory.*"
+        state: absent
+      failed_when: false

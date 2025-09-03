@@ -1,0 +1,25 @@
+---
+- name: Configure OCI servers using generated inventory
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  
+  tasks:
+    - name: Make scripts executable
+      ansible.builtin.file:
+        path: "{{ item }}"
+        mode: '0755'
+      loop:
+        - "{{ playbook_dir }}/../infra/terraform/make_inventory.sh"
+        - "{{ playbook_dir }}/../infra/terraform/run_ansible.sh"
+        
+    - name: Execute configuration workflow
+      ansible.builtin.shell: |
+        ./make_inventory.sh && ./run_ansible.sh
+      args:
+        chdir: "{{ playbook_dir }}/../infra/terraform"
+      register: config_result
+      
+    - name: Show configuration output
+      debug:
+        var: config_result.stdout_lines
