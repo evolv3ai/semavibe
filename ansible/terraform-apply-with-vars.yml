@@ -1,0 +1,92 @@
+---
+- name: Provision OCI Infrastructure with Terraform
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  
+  vars:
+    terraform_dir: "{{ playbook_dir }}/../infra/terraform"
+  
+  tasks:
+    - name: Check for required environment variables
+      fail:
+        msg: "Required environment variable {{ item }} is not set"
+      when: lookup('env', item) == ''
+      loop:
+        - TF_VAR_region
+        - TF_VAR_compartment_ocid
+        - TF_VAR_availability_domain
+    
+    - name: Display Terraform variables
+      debug:
+        msg:
+          - "Region: {{ lookup('env', 'TF_VAR_region') }}"
+          - "Compartment: {{ lookup('env', 'TF_VAR_compartment_ocid') }}"
+          - "Availability Domain: {{ lookup('env', 'TF_VAR_availability_domain') }}"
+    
+    - name: Check if terraform directory exists
+      stat:
+        path: "{{ terraform_dir }}"
+      register: terraform_dir_stat
+      
+    - name: Fail if terraform directory doesn't exist
+      fail:
+        msg: "Terraform directory does not exist at {{ terraform_dir }}"
+      when: not terraform_dir_stat.stat.exists
+    
+    - name: Initialize Terraform
+      command: terraform init -input=false
+      args:
+        chdir: "{{ terraform_dir }}"
+      environment:
+        TF_VAR_region: "{{ lookup('env', 'TF_VAR_region') }}"
+        TF_VAR_compartment_ocid: "{{ lookup('env', 'TF_VAR_compartment_ocid') }}"
+        TF_VAR_availability_domain: "{{ lookup('env', 'TF_VAR_availability_domain') }}"
+      register: init_result
+      
+    - name: Show Terraform init output
+      debug:
+        var: init_result.stdout_lines
+      when: init_result is defined
+        
+    - name: Apply Terraform configuration
+      command: terraform apply -auto-approve -input=false
+      args:
+        chdir: "{{ terraform_dir }}"
+      environment:
+        TF_VAR_region: "{{ lookup('env', 'TF_VAR_region') }}"
+        TF_VAR_compartment_ocid: "{{ lookup('env', 'TF_VAR_compartment_ocid') }}"
+        TF_VAR_availability_domain: "{{ lookup('env', 'TF_VAR_availability_domain') }}"
+      register: apply_result
+      when: init_result.rc == 0
+      
+    - name: Show Terraform apply output
+      debug:
+        var: apply_result.stdout_lines
+      when: apply_result is defined
+        
+    - name: Get instance IPs
+      command: terraform output -json instance_public_ips
+      args:
+        chdir: "{{ terraform_dir }}"
+      register: ips_output
+      when: 
+        - apply_result is defined
+        - apply_result.rc == 0
+      
+    - name: Parse instance IPs
+      set_fact:
+        instance_ips: "{{ ips_output.stdout | from_json }}"
+      when: 
+        - ips_output is defined
+        - ips_output.rc == 0
+      
+    - name: Display provisioned instance IPs
+      debug:
+        msg: "Instance IPs: {{ instance_ips | default([]) }}"
+      
+    - name: Save instance IPs to file
+      copy:
+        content: "{{ instance_ips | to_nice_json }}"
+        dest: "{{ playbook_dir }}/instance_ips.json"
+      when: instance_ips is defined
