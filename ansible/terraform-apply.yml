@@ -4,54 +4,86 @@
   connection: local
   gather_facts: no
   
+  vars:
+    terraform_dir: "{{ playbook_dir }}/../infra/terraform"
+  
   tasks:
-    - name: Show current directory
-      command: pwd
-      register: pwd_result
-      
-    - name: Display current directory
+    - name: Debug playbook directory
       debug:
-        msg: "Current directory: {{ pwd_result.stdout }}"
+        msg: "Playbook directory is: {{ playbook_dir }}"
+    
+    - name: Debug terraform directory path
+      debug:
+        msg: "Terraform directory path is: {{ terraform_dir }}"
+    
+    - name: List contents of playbook directory
+      command: ls -la
+      args:
+        chdir: "{{ playbook_dir }}"
+      register: playbook_contents
+      
+    - name: Show playbook directory contents
+      debug:
+        var: playbook_contents.stdout_lines
+    
+    - name: List contents of parent directory
+      command: ls -la
+      args:
+        chdir: "{{ playbook_dir }}/.."
+      register: parent_contents
+      
+    - name: Show parent directory contents
+      debug:
+        var: parent_contents.stdout_lines
     
     - name: Check if terraform directory exists
       stat:
-        path: "{{ playbook_dir }}/../infra/terraform"
-      register: terraform_dir
+        path: "{{ terraform_dir }}"
+      register: terraform_dir_stat
       
     - name: Show terraform directory status
       debug:
-        msg: "Terraform directory exists: {{ terraform_dir.stat.exists }}"
+        msg: "Terraform directory exists: {{ terraform_dir_stat.stat.exists }}"
     
     - name: Initialize Terraform
       command: terraform init -input=false
       args:
-        chdir: "{{ playbook_dir }}/../infra/terraform"
+        chdir: "{{ terraform_dir }}"
       register: init_result
-      when: terraform_dir.stat.exists
+      when: terraform_dir_stat.stat.exists
+      ignore_errors: yes
       
     - name: Show Terraform init output
       debug:
-        var: init_result.stdout_lines
-      when: init_result is defined and init_result.stdout_lines is defined
+        var: init_result
+      when: init_result is defined
         
     - name: Apply Terraform configuration
       command: terraform apply -auto-approve
       args:
-        chdir: "{{ playbook_dir }}/../infra/terraform"
+        chdir: "{{ terraform_dir }}"
       register: apply_result
-      when: terraform_dir.stat.exists
+      when: 
+        - terraform_dir_stat.stat.exists
+        - init_result is defined
+        - init_result.rc == 0
+      ignore_errors: yes
       
     - name: Show Terraform apply output
       debug:
-        var: apply_result.stdout_lines
-      when: apply_result is defined and apply_result.stdout_lines is defined
+        var: apply_result
+      when: apply_result is defined
         
     - name: Get instance IPs
       command: terraform output -json instance_public_ips
       args:
-        chdir: "{{ playbook_dir }}/../infra/terraform"
+        chdir: "{{ terraform_dir }}"
       register: ips_output
-      when: terraform_dir.stat.exists and apply_result is succeeded
+      when: 
+        - terraform_dir_stat.stat.exists
+        - apply_result is defined
+        - apply_result.rc == 0
+      ignore_errors: yes
       
     - name: Display provisioned instance IPs
       debug:
