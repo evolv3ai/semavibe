@@ -1,0 +1,9 @@
+---
+- hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Ensure Git is present (DNF/YUM compatible)
+      ansible.builtin.package:
+        name: git
+        state: present

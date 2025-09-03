@@ -1,0 +1,6 @@
+region               = "us-ashburn-1"
+compartment_ocid     = "ocid1.compartment.oc1..xxxx"
+availability_domain  = "Uocm:US-ASHBURN-AD-1"
+name_prefix          = "demo"
+ssh_public_key_path  = "~/.ssh/id_ed25519_oci.pub"
+#shape               = "VM.Standard.E2.1.Micro"
