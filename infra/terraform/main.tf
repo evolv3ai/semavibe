@@ -51,7 +51,10 @@ resource "oci_core_security_list" "sl" {
   ingress_security_rules {
     protocol = "6" # TCP
     source   = "0.0.0.0/0"
-    tcp_options { min = 22, max = 22 } # SSH
+    tcp_options {
+      min = 22
+      max = 22
+    } # SSH
   }
 }
 
