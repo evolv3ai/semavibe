@@ -5,42 +5,55 @@
   gather_facts: no
   
   tasks:
-    - name: Change to terraform directory
-      ansible.builtin.shell: pwd
-      args:
-        chdir: "{{ playbook_dir }}/../infra/terraform"
+    - name: Show current directory
+      command: pwd
       register: pwd_result
       
-    - name: Show working directory
+    - name: Display current directory
       debug:
-        msg: "Working in: {{ pwd_result.stdout }}"
+        msg: "Current directory: {{ pwd_result.stdout }}"
+    
+    - name: Check if terraform directory exists
+      stat:
+        path: "{{ playbook_dir }}/../infra/terraform"
+      register: terraform_dir
+      
+    - name: Show terraform directory status
+      debug:
+        msg: "Terraform directory exists: {{ terraform_dir.stat.exists }}"
     
     - name: Initialize Terraform
-      ansible.builtin.shell: terraform init -input=false
+      command: terraform init -input=false
       args:
         chdir: "{{ playbook_dir }}/../infra/terraform"
       register: init_result
+      when: terraform_dir.stat.exists
       
     - name: Show Terraform init output
       debug:
         var: init_result.stdout_lines
+      when: init_result is defined and init_result.stdout_lines is defined
         
     - name: Apply Terraform configuration
-      ansible.builtin.shell: terraform apply -auto-approve
+      command: terraform apply -auto-approve
       args:
         chdir: "{{ playbook_dir }}/../infra/terraform"
       register: apply_result
+      when: terraform_dir.stat.exists
       
     - name: Show Terraform apply output
       debug:
         var: apply_result.stdout_lines
+      when: apply_result is defined and apply_result.stdout_lines is defined
         
     - name: Get instance IPs
-      ansible.builtin.shell: terraform output -json instance_public_ips
+      command: terraform output -json instance_public_ips
       args:
         chdir: "{{ playbook_dir }}/../infra/terraform"
       register: ips_output
+      when: terraform_dir.stat.exists and apply_result is succeeded
       
     - name: Display provisioned instance IPs
       debug:
-        msg: "Instance IPs: {{ ips_output.stdout }}"
+        msg: "Instance IPs: {{ ips_output.stdout | default('No IPs found') }}"
+      when: ips_output is defined
