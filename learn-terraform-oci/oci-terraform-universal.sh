@@ -87,6 +87,14 @@ echo ""
 
 # Plan
 echo "Creating Terraform plan..."
+# Use environment variable for compartment_id if terraform.tfvars doesn't exist
+if [ ! -f terraform.tfvars ]; then
+    if [ -z "$TF_VAR_compartment_id" ]; then
+        echo "⚠️  No terraform.tfvars found and TF_VAR_compartment_id not set"
+        echo "   Using example compartment_id for demo purposes"
+        export TF_VAR_compartment_id="ocid1.compartment.oc1..aaaaaaaaq3qy3dmnci7vbc6vdzwaptmz6m4u667exhuc2zem4pde4f4fulea"
+    fi
+fi
 terraform plan -input=false
 echo ""
 echo "✓ Plan complete"
