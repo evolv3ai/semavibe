@@ -6,7 +6,8 @@ terraform {
 }
 
 provider "oci" {
-  # Reads from ~/.oci/config on the runner (mounted into Semaphore container)
+  # The OCI provider will read from OCI_CLI_CONFIG_FILE env var or default locations
+  # In Semaphore container: /home/semaphore/.oci/config
   config_file_profile = var.oci_profile
   region              = var.region
 }
