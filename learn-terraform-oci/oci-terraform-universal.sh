@@ -41,38 +41,73 @@ sed -i 's|/Users/[^/]*/.oci/|/home/semaphore/.oci/|g' /tmp/oci_config_fixed
 # Remove backslashes
 sed -i 's|\\|/|g' /tmp/oci_config_fixed
 
-# Fix incomplete profiles - add missing fields from DEFAULT
+# Extract DEFAULT values for missing fields
+DEFAULT_USER=$(grep -A10 "^\[DEFAULT\]" /tmp/oci_config_fixed | grep "^user" | head -1 | cut -d'=' -f2 | tr -d ' ')
+DEFAULT_TENANCY=$(grep -A10 "^\[DEFAULT\]" /tmp/oci_config_fixed | grep "^tenancy" | head -1 | cut -d'=' -f2 | tr -d ' ')
+DEFAULT_REGION=$(grep -A10 "^\[DEFAULT\]" /tmp/oci_config_fixed | grep "^region" | head -1 | cut -d'=' -f2 | tr -d ' ')
+
+# If no region in DEFAULT, use us-ashburn-1
+if [ -z "$DEFAULT_REGION" ]; then
+    DEFAULT_REGION="us-ashburn-1"
+fi
+
 echo "Fixing incomplete profiles..."
-python3 - <<'EOF' 2>/dev/null || perl -pe 's/\r\n/\n/g' /tmp/oci_config_fixed > /tmp/oci_config_fixed2 && mv /tmp/oci_config_fixed2 /tmp/oci_config_fixed
-import configparser
-import sys
-
-config = configparser.ConfigParser()
-config.read('/tmp/oci_config_fixed')
-
-# Get DEFAULT values
-default_user = config.get('DEFAULT', 'user', fallback=None)
-default_tenancy = config.get('DEFAULT', 'tenancy', fallback=None)
-default_region = config.get('DEFAULT', 'region', fallback='us-ashburn-1')
-
-# Fix each profile
-for section in config.sections():
-    # Add missing user
-    if not config.has_option(section, 'user') and default_user:
-        config.set(section, 'user', default_user)
+# Create a new config with complete profiles
+{
+    current_profile=""
+    has_user=false
+    has_tenancy=false
+    has_region=false
     
-    # Add missing tenancy
-    if not config.has_option(section, 'tenancy') and default_tenancy:
-        config.set(section, 'tenancy', default_tenancy)
+    while IFS= read -r line; do
+        # Check if this is a profile header
+        if [[ "$line" =~ ^\[.*\]$ ]]; then
+            # If we were processing a profile, add missing fields
+            if [ -n "$current_profile" ]; then
+                if [ "$has_user" = false ] && [ -n "$DEFAULT_USER" ]; then
+                    echo "user=$DEFAULT_USER"
+                fi
+                if [ "$has_tenancy" = false ] && [ -n "$DEFAULT_TENANCY" ]; then
+                    echo "tenancy=$DEFAULT_TENANCY"
+                fi
+                if [ "$has_region" = false ] && [ -n "$DEFAULT_REGION" ]; then
+                    echo "region=$DEFAULT_REGION"
+                fi
+            fi
+            # Start new profile
+            current_profile="$line"
+            has_user=false
+            has_tenancy=false
+            has_region=false
+            echo "$line"
+        else
+            # Check what field this is
+            if [[ "$line" =~ ^user= ]]; then
+                has_user=true
+            elif [[ "$line" =~ ^tenancy= ]]; then
+                has_tenancy=true
+            elif [[ "$line" =~ ^region= ]]; then
+                has_region=true
+            fi
+            echo "$line"
+        fi
+    done < /tmp/oci_config_fixed
     
-    # Add missing region
-    if not config.has_option(section, 'region'):
-        config.set(section, 'region', default_region)
+    # Handle the last profile
+    if [ -n "$current_profile" ]; then
+        if [ "$has_user" = false ] && [ -n "$DEFAULT_USER" ]; then
+            echo "user=$DEFAULT_USER"
+        fi
+        if [ "$has_tenancy" = false ] && [ -n "$DEFAULT_TENANCY" ]; then
+            echo "tenancy=$DEFAULT_TENANCY"
+        fi
+        if [ "$has_region" = false ] && [ -n "$DEFAULT_REGION" ]; then
+            echo "region=$DEFAULT_REGION"
+        fi
+    fi
+} > /tmp/oci_config_complete
 
-# Write fixed config
-with open('/tmp/oci_config_fixed', 'w') as f:
-    config.write(f)
-EOF
+mv /tmp/oci_config_complete /tmp/oci_config_fixed
 
 export OCI_CLI_CONFIG_FILE="/tmp/oci_config_fixed"
 echo "✓ Paths and profiles fixed - now using: $OCI_CLI_CONFIG_FILE"
