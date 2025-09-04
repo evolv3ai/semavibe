@@ -1,19 +1,98 @@
 #!/bin/bash
 set -e
 
-# Set OCI environment
-export OCI_CLI_CONFIG_FILE="/home/semaphore/.oci/config"
+echo "================================================"
+echo "OCI Terraform Universal Setup"
+echo "================================================"
+echo ""
 
-# Fix paths in config
-cp $OCI_CLI_CONFIG_FILE /tmp/oci_config
-sed -i 's|C:\\Users\\[^\\]*\\.oci|/home/semaphore/.oci|g' /tmp/oci_config
-sed -i 's|~/.oci|/home/semaphore/.oci|g' /tmp/oci_config
-export OCI_CLI_CONFIG_FILE="/tmp/oci_config"
+# Debug: Show environment
+echo "Environment variables:"
+env | grep -E "OCI|TERRAFORM" || true
+echo ""
+
+# Set OCI environment
+export OCI_CLI_CONFIG_FILE="${OCI_CLI_CONFIG_FILE:-/home/semaphore/.oci/config}"
+echo "Using OCI config: $OCI_CLI_CONFIG_FILE"
+
+# Check if config exists
+if [ ! -f "$OCI_CLI_CONFIG_FILE" ]; then
+    echo "ERROR: OCI config not found at $OCI_CLI_CONFIG_FILE"
+    echo "Contents of /home/semaphore/.oci/:"
+    ls -la /home/semaphore/.oci/ 2>/dev/null || echo "Directory not found"
+    exit 1
+fi
+
+echo "✓ OCI config found"
+echo ""
+
+# Create working copy and fix paths
+echo "Fixing paths in OCI config..."
+cp "$OCI_CLI_CONFIG_FILE" /tmp/oci_config_fixed
+
+# Fix Windows paths
+sed -i 's|C:\\Users\\[^\\]*\\.oci\\|/home/semaphore/.oci/|g' /tmp/oci_config_fixed
+sed -i 's|C:\\Users\\[^\\]*\\.oci/|/home/semaphore/.oci/|g' /tmp/oci_config_fixed
+
+# Fix Unix paths
+sed -i 's|~/.oci/|/home/semaphore/.oci/|g' /tmp/oci_config_fixed
+sed -i 's|/Users/[^/]*/.oci/|/home/semaphore/.oci/|g' /tmp/oci_config_fixed
+
+# Remove backslashes
+sed -i 's|\\|/|g' /tmp/oci_config_fixed
+
+export OCI_CLI_CONFIG_FILE="/tmp/oci_config_fixed"
+echo "✓ Paths fixed"
+echo ""
+
+# Show available profiles
+echo "Available OCI profiles:"
+grep "^\[" "$OCI_CLI_CONFIG_FILE" || echo "No profiles found"
+echo ""
 
 # Navigate to Terraform directory
-cd learn-terraform-oci
+echo "Navigating to Terraform directory..."
+if [ -d "learn-terraform-oci" ]; then
+    cd learn-terraform-oci
+elif [ -d "." ]; then
+    # Already in the right directory
+    echo "Already in learn-terraform-oci directory"
+else
+    echo "ERROR: Cannot find Terraform directory"
+    exit 1
+fi
 
-# Run Terraform
+echo "Current directory: $(pwd)"
+echo "Files:"
+ls -la *.tf 2>/dev/null || echo "No .tf files found"
+echo ""
+
+# Check Terraform installation
+echo "Checking Terraform..."
+which terraform || (echo "ERROR: Terraform not found" && exit 1)
+terraform version
+echo ""
+
+# Initialize Terraform
+echo "Initializing Terraform..."
 terraform init -input=false
-terraform plan
-# terraform apply -auto-approve  # Uncomment to apply
+echo "✓ Terraform initialized"
+echo ""
+
+# Validate
+echo "Validating Terraform configuration..."
+terraform validate
+echo "✓ Configuration valid"
+echo ""
+
+# Plan
+echo "Creating Terraform plan..."
+terraform plan -input=false
+echo ""
+echo "✓ Plan complete"
+echo ""
+
+echo "================================================"
+echo "Task completed successfully!"
+echo "To apply: terraform apply -auto-approve"
+echo "================================================"
