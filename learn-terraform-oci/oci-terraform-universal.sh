@@ -109,8 +109,13 @@ echo "Fixing incomplete profiles..."
 
 mv /tmp/oci_config_complete /tmp/oci_config_fixed
 
-export OCI_CLI_CONFIG_FILE="/tmp/oci_config_fixed"
-echo "✓ Paths and profiles fixed - now using: $OCI_CLI_CONFIG_FILE"
+# CRITICAL: Copy the fixed config back to the original location
+# The mounted file is read-only, but we can overwrite it in the container's layer
+echo "Copying fixed config to original location..."
+cat /tmp/oci_config_fixed > /home/semaphore/.oci/config
+
+export OCI_CLI_CONFIG_FILE="/home/semaphore/.oci/config"
+echo "✓ Paths and profiles fixed - config updated at: $OCI_CLI_CONFIG_FILE"
 echo ""
 
 # Debug: Show the fixed config content (first few lines)
