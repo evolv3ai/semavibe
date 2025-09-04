@@ -42,7 +42,12 @@ sed -i 's|/Users/[^/]*/.oci/|/home/semaphore/.oci/|g' /tmp/oci_config_fixed
 sed -i 's|\\|/|g' /tmp/oci_config_fixed
 
 export OCI_CLI_CONFIG_FILE="/tmp/oci_config_fixed"
-echo "✓ Paths fixed"
+echo "✓ Paths fixed - now using: $OCI_CLI_CONFIG_FILE"
+echo ""
+
+# Debug: Show the fixed config content (first few lines)
+echo "Fixed config preview:"
+head -n 20 "$OCI_CLI_CONFIG_FILE"
 echo ""
 
 # Show available profiles
