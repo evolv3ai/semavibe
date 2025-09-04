@@ -11,6 +11,7 @@ provider "oci" {
   # Use API key authentication instead of SecurityToken
   # auth              = "SecurityToken"  # Commented out - not needed for API key auth
   config_file_profile = var.config_file_profile
+  # The OCI provider will use OCI_CLI_CONFIG_FILE environment variable for config path
 }
 
 resource "oci_core_vcn" "internal" {

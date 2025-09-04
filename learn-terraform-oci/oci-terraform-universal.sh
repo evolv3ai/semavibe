@@ -150,6 +150,9 @@ echo ""
 echo "Setting OCI profile for Terraform: $OCI_CONFIG_PROFILE"
 export TF_VAR_config_file_profile="$OCI_CONFIG_PROFILE"
 
+# CRITICAL: Terraform will use OCI_CLI_CONFIG_FILE environment variable
+echo "Terraform will use config from: $OCI_CLI_CONFIG_FILE"
+
 # Navigate to Terraform directory
 echo "Navigating to Terraform directory..."
 if [ -d "learn-terraform-oci" ]; then
