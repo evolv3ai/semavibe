@@ -41,6 +41,31 @@ sed -i 's|/Users/[^/]*/.oci/|/home/semaphore/.oci/|g' /tmp/oci_config_fixed
 # Remove backslashes
 sed -i 's|\\|/|g' /tmp/oci_config_fixed
 
+# Extract user from DEFAULT profile if it exists
+DEFAULT_USER=$(grep -A5 "^\[DEFAULT\]" /tmp/oci_config_fixed | grep "^user" | cut -d'=' -f2 | tr -d ' ')
+
+# Add missing user field to profiles that don't have it
+if [ -n "$DEFAULT_USER" ]; then
+    # Check each profile and add user if missing
+    awk -v user="$DEFAULT_USER" '
+    /^\[/ {
+        if (profile && !has_user) {
+            print "user = " user
+        }
+        profile = $0
+        has_user = 0
+    }
+    /^user/ { has_user = 1 }
+    { print }
+    END {
+        if (profile && !has_user) {
+            print "user = " user
+        }
+    }
+    ' /tmp/oci_config_fixed > /tmp/oci_config_fixed2
+    mv /tmp/oci_config_fixed2 /tmp/oci_config_fixed
+fi
+
 export OCI_CLI_CONFIG_FILE="/tmp/oci_config_fixed"
 echo "✓ Paths fixed - now using: $OCI_CLI_CONFIG_FILE"
 echo ""
