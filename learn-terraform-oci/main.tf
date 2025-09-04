@@ -8,7 +8,8 @@ terraform {
 
 provider "oci" {
   region              = var.region
-  auth                = "SecurityToken"
+  # Use API key authentication instead of SecurityToken
+  # auth              = "SecurityToken"  # Commented out - not needed for API key auth
   config_file_profile = "learn-terraform"
 }
 
