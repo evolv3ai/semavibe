@@ -10,7 +10,7 @@ provider "oci" {
   region              = var.region
   # Use API key authentication instead of SecurityToken
   # auth              = "SecurityToken"  # Commented out - not needed for API key auth
-  config_file_profile = "learn-terraform"
+  config_file_profile = var.config_file_profile
 }
 
 resource "oci_core_vcn" "internal" {
