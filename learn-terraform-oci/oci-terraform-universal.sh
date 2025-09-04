@@ -41,33 +41,41 @@ sed -i 's|/Users/[^/]*/.oci/|/home/semaphore/.oci/|g' /tmp/oci_config_fixed
 # Remove backslashes
 sed -i 's|\\|/|g' /tmp/oci_config_fixed
 
-# Extract user from DEFAULT profile if it exists
-DEFAULT_USER=$(grep -A5 "^\[DEFAULT\]" /tmp/oci_config_fixed | grep "^user" | cut -d'=' -f2 | tr -d ' ')
+# Fix incomplete profiles - add missing fields from DEFAULT
+echo "Fixing incomplete profiles..."
+python3 - <<'EOF' 2>/dev/null || perl -pe 's/\r\n/\n/g' /tmp/oci_config_fixed > /tmp/oci_config_fixed2 && mv /tmp/oci_config_fixed2 /tmp/oci_config_fixed
+import configparser
+import sys
 
-# Add missing user field to profiles that don't have it
-if [ -n "$DEFAULT_USER" ]; then
-    # Check each profile and add user if missing
-    awk -v user="$DEFAULT_USER" '
-    /^\[/ {
-        if (profile && !has_user) {
-            print "user = " user
-        }
-        profile = $0
-        has_user = 0
-    }
-    /^user/ { has_user = 1 }
-    { print }
-    END {
-        if (profile && !has_user) {
-            print "user = " user
-        }
-    }
-    ' /tmp/oci_config_fixed > /tmp/oci_config_fixed2
-    mv /tmp/oci_config_fixed2 /tmp/oci_config_fixed
-fi
+config = configparser.ConfigParser()
+config.read('/tmp/oci_config_fixed')
+
+# Get DEFAULT values
+default_user = config.get('DEFAULT', 'user', fallback=None)
+default_tenancy = config.get('DEFAULT', 'tenancy', fallback=None)
+default_region = config.get('DEFAULT', 'region', fallback='us-ashburn-1')
+
+# Fix each profile
+for section in config.sections():
+    # Add missing user
+    if not config.has_option(section, 'user') and default_user:
+        config.set(section, 'user', default_user)
+    
+    # Add missing tenancy
+    if not config.has_option(section, 'tenancy') and default_tenancy:
+        config.set(section, 'tenancy', default_tenancy)
+    
+    # Add missing region
+    if not config.has_option(section, 'region'):
+        config.set(section, 'region', default_region)
+
+# Write fixed config
+with open('/tmp/oci_config_fixed', 'w') as f:
+    config.write(f)
+EOF
 
 export OCI_CLI_CONFIG_FILE="/tmp/oci_config_fixed"
-echo "✓ Paths fixed - now using: $OCI_CLI_CONFIG_FILE"
+echo "✓ Paths and profiles fixed - now using: $OCI_CLI_CONFIG_FILE"
 echo ""
 
 # Debug: Show the fixed config content (first few lines)
