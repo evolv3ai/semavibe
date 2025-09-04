@@ -123,6 +123,33 @@ echo "Available OCI profiles:"
 grep "^\[" "$OCI_CLI_CONFIG_FILE" || echo "No profiles found"
 echo ""
 
+# Check which profile to use
+if [ -n "$OCI_CONFIG_PROFILE" ]; then
+    echo "Using specified profile: $OCI_CONFIG_PROFILE"
+else
+    # Default to DEFAULT profile for Terraform
+    export OCI_CONFIG_PROFILE="DEFAULT"
+    echo "No profile specified, using: DEFAULT"
+fi
+
+# Verify the profile has required fields
+echo "Verifying profile configuration..."
+profile_user=$(grep -A10 "^\[$OCI_CONFIG_PROFILE\]" "$OCI_CLI_CONFIG_FILE" | grep "^user" | head -1)
+profile_key=$(grep -A10 "^\[$OCI_CONFIG_PROFILE\]" "$OCI_CLI_CONFIG_FILE" | grep "^key_file" | head -1)
+profile_token=$(grep -A10 "^\[$OCI_CONFIG_PROFILE\]" "$OCI_CLI_CONFIG_FILE" | grep "^security_token_file" | head -1)
+
+if [ -n "$profile_token" ] && [ -z "$profile_user" ]; then
+    echo "⚠️  Profile $OCI_CONFIG_PROFILE uses session-based auth (security_token_file)"
+    echo "   This is incompatible with Terraform. Switching to DEFAULT profile."
+    export OCI_CONFIG_PROFILE="DEFAULT"
+fi
+
+echo ""
+
+# Set the profile for Terraform
+echo "Setting OCI profile for Terraform: $OCI_CONFIG_PROFILE"
+export TF_VAR_config_file_profile="$OCI_CONFIG_PROFILE"
+
 # Navigate to Terraform directory
 echo "Navigating to Terraform directory..."
 if [ -d "learn-terraform-oci" ]; then
@@ -160,14 +187,31 @@ echo ""
 
 # Plan
 echo "Creating Terraform plan..."
-# Use environment variable for compartment_id if terraform.tfvars doesn't exist
-if [ ! -f terraform.tfvars ]; then
-    if [ -z "$TF_VAR_compartment_id" ]; then
-        echo "⚠️  No terraform.tfvars found and TF_VAR_compartment_id not set"
-        echo "   Using example compartment_id for demo purposes"
-        export TF_VAR_compartment_id="ocid1.compartment.oc1..aaaaaaaaq3qy3dmnci7vbc6vdzwaptmz6m4u667exhuc2zem4pde4f4fulea"
-    fi
+
+# Check if compartment_id is already set (from Semaphore Variable Group)
+if [ -n "$compartment_id" ]; then
+    echo "Using compartment_id from Semaphore Variable Group"
+    export TF_VAR_compartment_id="$compartment_id"
+elif [ -n "$TF_VAR_compartment_id" ]; then
+    echo "Using existing TF_VAR_compartment_id"
+elif [ -f terraform.tfvars ]; then
+    echo "Using terraform.tfvars file"
+else
+    echo "⚠️  No compartment_id found in environment or terraform.tfvars"
+    echo "   Using example compartment_id for demo purposes"
+    export TF_VAR_compartment_id="ocid1.compartment.oc1..aaaaaaaaq3qy3dmnci7vbc6vdzwaptmz6m4u667exhuc2zem4pde4f4fulea"
 fi
+
+# Also export region if provided by Semaphore
+if [ -n "$region" ]; then
+    echo "Using region from Semaphore Variable Group: $region"
+    export TF_VAR_region="$region"
+fi
+
+# Show what variables we're using
+echo "Terraform variables:"
+env | grep "TF_VAR_" || echo "No TF_VAR_ variables set"
+
 terraform plan -input=false
 echo ""
 echo "✓ Plan complete"
