@@ -114,9 +114,47 @@ export OCI_CLI_CONFIG_FILE="/tmp/oci_config_fixed"
 echo "✓ Paths and profiles fixed - using: $OCI_CLI_CONFIG_FILE"
 echo ""
 
+# Validate that key files actually exist
+echo "Validating key files..."
+while IFS= read -r line; do
+    if [[ "$line" =~ ^key_file= ]]; then
+        key_path=$(echo "$line" | cut -d'=' -f2 | tr -d ' ')
+        if [ ! -f "$key_path" ]; then
+            echo "⚠️  WARNING: Key file not found: $key_path"
+            echo "   Checking for alternative locations..."
+            
+            # Try to find the key file in common locations
+            key_filename=$(basename "$key_path")
+            found_key=""
+            
+            # Check common locations
+            for dir in /home/semaphore/.oci /home/semaphore/.oci/sessions/*/; do
+                if [ -f "$dir/$key_filename" ]; then
+                    found_key="$dir/$key_filename"
+                    echo "   ✓ Found key at: $found_key"
+                    # Update the config with the correct path
+                    sed -i "s|$key_path|$found_key|g" "$OCI_CLI_CONFIG_FILE"
+                    break
+                fi
+            done
+            
+            if [ -z "$found_key" ]; then
+                echo "   ❌ ERROR: Could not find key file: $key_filename"
+                echo "   Available files in /home/semaphore/.oci:"
+                ls -la /home/semaphore/.oci/ 2>/dev/null | grep -E "\.(pem|key)" || echo "   No .pem or .key files found"
+                echo ""
+                echo "   This profile will not work with Terraform."
+            fi
+        else
+            echo "   ✓ Key file exists: $key_path"
+        fi
+    fi
+done < "$OCI_CLI_CONFIG_FILE"
+echo ""
+
 # Debug: Show the fixed config content (first few lines)
 echo "Fixed config preview:"
-head -n 20 "$OCI_CLI_CONFIG_FILE"
+head -n 30 "$OCI_CLI_CONFIG_FILE"
 echo ""
 
 # Show available profiles
@@ -138,11 +176,47 @@ echo "Verifying profile configuration..."
 profile_user=$(grep -A10 "^\[$OCI_CONFIG_PROFILE\]" "$OCI_CLI_CONFIG_FILE" | grep "^user" | head -1)
 profile_key=$(grep -A10 "^\[$OCI_CONFIG_PROFILE\]" "$OCI_CLI_CONFIG_FILE" | grep "^key_file" | head -1)
 profile_token=$(grep -A10 "^\[$OCI_CONFIG_PROFILE\]" "$OCI_CLI_CONFIG_FILE" | grep "^security_token_file" | head -1)
+profile_fingerprint=$(grep -A10 "^\[$OCI_CONFIG_PROFILE\]" "$OCI_CLI_CONFIG_FILE" | grep "^fingerprint" | head -1)
+profile_tenancy=$(grep -A10 "^\[$OCI_CONFIG_PROFILE\]" "$OCI_CLI_CONFIG_FILE" | grep "^tenancy" | head -1)
 
 if [ -n "$profile_token" ] && [ -z "$profile_user" ]; then
     echo "⚠️  Profile $OCI_CONFIG_PROFILE uses session-based auth (security_token_file)"
     echo "   This is incompatible with Terraform. Switching to DEFAULT profile."
     export OCI_CONFIG_PROFILE="DEFAULT"
+fi
+
+# Check if the key file for this profile actually exists
+if [ -n "$profile_key" ]; then
+    key_path=$(echo "$profile_key" | cut -d'=' -f2 | tr -d ' ')
+    if [ ! -f "$key_path" ]; then
+        echo "❌ ERROR: Key file for profile $OCI_CONFIG_PROFILE not found: $key_path"
+        echo ""
+        echo "Available profiles with valid keys:"
+        grep "^\[" "$OCI_CLI_CONFIG_FILE" | while read -r profile_line; do
+            profile_name=$(echo "$profile_line" | tr -d '[]')
+            profile_key_line=$(grep -A10 "^$profile_line" "$OCI_CLI_CONFIG_FILE" | grep "^key_file" | head -1)
+            if [ -n "$profile_key_line" ]; then
+                key_file=$(echo "$profile_key_line" | cut -d'=' -f2 | tr -d ' ')
+                if [ -f "$key_file" ]; then
+                    echo "  ✓ $profile_name - key exists"
+                fi
+            fi
+        done
+        echo ""
+        echo "Please ensure the OCI API key is properly mounted in the container."
+        echo "The key should be at: $key_path"
+        exit 1
+    fi
+fi
+
+# Verify all required fields are present
+if [ -z "$profile_user" ] || [ -z "$profile_key" ] || [ -z "$profile_fingerprint" ] || [ -z "$profile_tenancy" ]; then
+    echo "❌ ERROR: Profile $OCI_CONFIG_PROFILE is missing required fields"
+    echo "  User: $profile_user"
+    echo "  Key: $profile_key"
+    echo "  Fingerprint: $profile_fingerprint"
+    echo "  Tenancy: $profile_tenancy"
+    exit 1
 fi
 
 echo ""
