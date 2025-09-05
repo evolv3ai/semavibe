@@ -114,6 +114,16 @@ export OCI_CLI_CONFIG_FILE="/tmp/oci_config_fixed"
 echo "✓ Paths and profiles fixed - using: $OCI_CLI_CONFIG_FILE"
 echo ""
 
+# Check if we have a key from Semaphore Key Store
+if [ -n "$learn_terraform_ssh" ]; then
+    echo "✓ Found learn-terraform key from Semaphore Key Store"
+    echo "  Writing key to /home/semaphore/.oci/sessions/learn-terraform/oci_api_key.pem"
+    mkdir -p /home/semaphore/.oci/sessions/learn-terraform/
+    echo "$learn_terraform_ssh" > /home/semaphore/.oci/sessions/learn-terraform/oci_api_key.pem
+    chmod 600 /home/semaphore/.oci/sessions/learn-terraform/oci_api_key.pem
+    echo "  ✓ Key written and permissions set"
+fi
+
 # Validate that key files actually exist
 echo "Validating key files..."
 while IFS= read -r line; do
