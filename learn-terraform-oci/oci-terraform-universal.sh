@@ -162,14 +162,29 @@ echo "Available OCI profiles:"
 grep "^\[" "$OCI_CLI_CONFIG_FILE" || echo "No profiles found"
 echo ""
 
-# Check which profile to use
+# Check which profile to use - check multiple possible variable names
+# Semaphore may pass survey variables with different names
 if [ -n "$OCI_CONFIG_PROFILE" ]; then
-    echo "Using specified profile: $OCI_CONFIG_PROFILE"
+    echo "Using specified profile from OCI_CONFIG_PROFILE: $OCI_CONFIG_PROFILE"
+elif [ -n "$oci_profile" ]; then
+    export OCI_CONFIG_PROFILE="$oci_profile"
+    echo "Using specified profile from oci_profile: $OCI_CONFIG_PROFILE"
+elif [ -n "$profile" ]; then
+    export OCI_CONFIG_PROFILE="$profile"
+    echo "Using specified profile from profile: $OCI_CONFIG_PROFILE"
+elif [ -n "$OCI_PROFILE" ]; then
+    export OCI_CONFIG_PROFILE="$OCI_PROFILE"
+    echo "Using specified profile from OCI_PROFILE: $OCI_CONFIG_PROFILE"
 else
     # Default to DEFAULT profile for Terraform
     export OCI_CONFIG_PROFILE="DEFAULT"
     echo "No profile specified, using: DEFAULT"
 fi
+
+# Debug: Show all environment variables that might contain profile info
+echo "Debug - Environment variables containing 'profile' or 'PROFILE':"
+env | grep -i profile || echo "No profile-related variables found"
+echo ""
 
 # Verify the profile has required fields
 echo "Verifying profile configuration..."
