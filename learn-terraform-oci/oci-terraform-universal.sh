@@ -114,15 +114,29 @@ export OCI_CLI_CONFIG_FILE="/tmp/oci_config_fixed"
 echo "✓ Paths and profiles fixed - using: $OCI_CLI_CONFIG_FILE"
 echo ""
 
-# Check if we have a key from Semaphore Key Store
-if [ -n "$learn_terraform_ssh" ]; then
-    echo "✓ Found learn-terraform key from Semaphore Key Store"
+# Check if we have a key from Semaphore Key Store (injected as SEMAPHORE_SECRET_*)
+# Semaphore injects SSH keys with the private_key available
+if [ -n "$SEMAPHORE_SECRET_learn_terraform_ssh" ]; then
+    echo "✓ Found learn-terraform key from Semaphore Key Store (via SEMAPHORE_SECRET)"
     echo "  Writing key to /home/semaphore/.oci/sessions/learn-terraform/oci_api_key.pem"
     mkdir -p /home/semaphore/.oci/sessions/learn-terraform/
-    echo "$learn_terraform_ssh" > /home/semaphore/.oci/sessions/learn-terraform/oci_api_key.pem
+    echo "$SEMAPHORE_SECRET_learn_terraform_ssh" > /home/semaphore/.oci/sessions/learn-terraform/oci_api_key.pem
     chmod 600 /home/semaphore/.oci/sessions/learn-terraform/oci_api_key.pem
     echo "  ✓ Key written and permissions set"
+elif [ -f "/home/semaphore/.ssh/id_rsa" ]; then
+    # Semaphore might inject the SSH key to the standard location
+    echo "✓ Found SSH key at standard location"
+    echo "  Checking if it's the learn-terraform key..."
+    mkdir -p /home/semaphore/.oci/sessions/learn-terraform/
+    cp /home/semaphore/.ssh/id_rsa /home/semaphore/.oci/sessions/learn-terraform/oci_api_key.pem
+    chmod 600 /home/semaphore/.oci/sessions/learn-terraform/oci_api_key.pem
+    echo "  ✓ Key copied to OCI location"
 fi
+
+# Debug: Show available environment variables related to secrets
+echo "Debug - Available SEMAPHORE variables:"
+env | grep SEMAPHORE || echo "No SEMAPHORE variables found"
+echo ""
 
 # Validate that key files actually exist
 echo "Validating key files..."
